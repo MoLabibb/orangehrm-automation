@@ -1,0 +1,61 @@
+name: OrangeHRM Automation Tests
+
+# Run on pushes, PRs to main, or manual trigger
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    name: "API Tests + HTML Report"
+
+    steps:
+      # Checkout repository
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@v4
+
+      # Setup Python
+      - name: "🐍 Set up Python 3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # Install project dependencies
+      - name: "📦 Install dependencies"
+        run: pip install -r requirements.txt
+
+      # Install Chrome browser
+      - name: "🌐 Install Google Chrome"
+        uses: browser-actions/setup-chrome@v1
+
+      # Ensure reports directory exists
+      - name: "📁 Create reports directory"
+        run: mkdir -p reports
+
+      # Run API tests
+      - name: "🧪 Run API tests"
+        run: pytest tests/test_api_candidates.py -v --tb=short
+
+      # Upload HTML report artifact
+      - name: "📊 Upload HTML test report"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: "test-report-${{ github.run_number }}"
+          path: reports/report.html
+          retention-days: 30
+
+      # Print test summary
+      - name: "📋 Test summary"
+        if: always()
+        run: |
+          echo "================================"
+          echo "  Test run complete"
+          echo "  Report: reports/report.html"
+          echo "  Artifact: test-report-${{ github.run_number }}"
+          echo "================================"

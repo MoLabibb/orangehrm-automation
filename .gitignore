@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Virtual environment
+venv/
+.env
+
+# Test reports — generated on every run, no need to commit
+reports/*.html
+reports/*.xml
+
+# WHY keep reports/.gitkeep but ignore *.html:
+#   .gitkeep ensures the reports/ folder exists when someone clones the repo.
+#   Without it, pytest fails immediately trying to write report.html
+#   into a folder that doesn't exist.
+#   The actual HTML reports are excluded — they are machine-specific
+#   and regenerated on every run.
+
+# IDE
+.idea/
+.vscode/
+*.DS_Store
+
+# WebDriver cache
+.wdm/
