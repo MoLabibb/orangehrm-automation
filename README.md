@@ -1,6 +1,6 @@
 # OrangeHRM Test Automation Framework
 
-[![API Tests](https://github.com/YOUR_USERNAME/YOUR_REPO_NAME/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO_NAME/actions/workflows/ci.yml)
+[![API Tests](https://github.com/molabibb/orangehrm-automation/actions/workflows/ci.yml/badge.svg)](https://github.com/molabibb/orangehrm-automation/actions/workflows/ci.yml)
 
 > Automated test suite covering **UI automation** (Selenium) and **REST API testing**
 > (Requests + Pytest) for [OrangeHRM Demo](https://opensource-demo.orangehrmlive.com/)
@@ -75,8 +75,8 @@ Before running the tests you need:
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-cd YOUR_REPO_NAME
+git clone https://github.com//molabibb/orangehrm-automation.git
+cd orangehrm-automation
 ```
 
 ### 2. Create and activate a virtual environment
