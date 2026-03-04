@@ -16,12 +16,13 @@
 | API Testing | Requests | HTTP calls to REST API |
 | Test Runner | Pytest | Test discovery and execution |
 | Design Pattern | Page Object Model | UI layer structure |
-| Driver Manager | WebDriver Manager | Auto-downloads ChromeDriver |
+| Driver Manager | WebDriver Manager | Auto-downloads ChromeDriver locally |
 | Reporting | pytest-html | HTML test report generation |
 
 ---
 
 ## Project Structure
+
 ```
 orangehrm_automation/
 │
@@ -41,6 +42,7 @@ orangehrm_automation/
 │
 ├── tests/
 │   ├── __init__.py
+│   ├── conftest.py               # Test order — API tests run before UI tests
 │   ├── test_admin_user_flow.py   # UI test — create and delete a system user
 │   └── test_api_candidates.py    # API test — create and delete a candidate
 │
@@ -74,12 +76,14 @@ Before running the tests you need:
 ## Setup
 
 ### 1. Clone the repository
+
 ```bash
-git clone https://github.com//molabibb/orangehrm-automation.git
+git clone https://github.com/molabibb/orangehrm-automation.git
 cd orangehrm-automation
 ```
 
 ### 2. Create and activate a virtual environment
+
 ```bash
 # Create virtual environment
 python -m venv venv
@@ -92,38 +96,43 @@ source venv/bin/activate
 ```
 
 ### 3. Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-> ChromeDriver is downloaded automatically by WebDriver Manager —
-> no manual driver setup needed.
+> ChromeDriver is downloaded automatically by WebDriver Manager locally.
+> No manual driver setup needed.
 
 ---
 
 ## Running Tests
 
 ### Run all tests
+
 ```bash
 pytest
 ```
 
 ### Run UI test only
+
 ```bash
 pytest tests/test_admin_user_flow.py -v
 ```
 
 ### Run API tests only
+
 ```bash
 pytest tests/test_api_candidates.py -v
 ```
 
 ### Run with visible output
+
 ```bash
 pytest -s
 ```
 
-> After every run, an HTML report is automatically generated at:
+> After every run an HTML report is automatically generated at
 > `reports/report.html` — open it in any browser.
 
 ---
@@ -148,12 +157,12 @@ Tests the Admin > User Management page end-to-end:
 
 ### API Test — `test_api_candidates.py`
 
-Tests the Recruitment Candidates API directly via HTTP:
+Tests the Recruitment Candidates API directly via HTTP — no browser involved:
 
 | Test | Action | Verification |
 |------|--------|-------------|
-| `test_add_candidate_increases_count_by_one` | POST new candidate | Count increases by 1 |
-| `test_delete_candidate_decreases_count_by_one` | DELETE candidate by id | Count decreases by 1 |
+| `test_add_candidate_increases_count_by_one` | POST new candidate via API | Count increases by 1 |
+| `test_delete_candidate_decreases_count_by_one` | DELETE candidate by id via API | Count decreases by 1 |
 
 ---
 
@@ -162,17 +171,19 @@ Tests the Recruitment Candidates API directly via HTTP:
 Every test run automatically generates a report at `reports/report.html`.
 
 The report includes:
+
 - **Environment table** — project name, URL, browser, Python version
 - **Results summary** — total passed, failed, errors
-- **Per-test details** — duration, status, captured logs
+- **Per-test details** — duration, status, captured output
 - **Failure details** — full traceback when a test fails
 
 Open the report after any run:
+
 ```bash
 # Windows
 start reports/report.html
 
-# Mac
+# Mac/Linux
 open reports/report.html
 ```
 
@@ -181,58 +192,94 @@ open reports/report.html
 ## Design Principles
 
 ### Page Object Model (POM)
+
 Each page of the application has one class. Locators and actions are
 defined inside that class. Tests call human-readable methods —
 no raw XPATHs or Selenium calls appear in test files.
+
 ```
-Test calls:          admin_page.add_user(username, password)
-POM handles:         click add button → fill form → save → wait for redirect
-Test never knows:    XPATHs, waits, browser mechanics
+Test calls:       admin_page.add_user(username, password)
+POM handles:      click add → fill form → save → wait for redirect
+Test never knows: XPATHs, waits, browser mechanics
 ```
 
 ### DRY — Don't Repeat Yourself
+
 `BasePage` holds all shared Selenium helpers (`click`, `enter_text`, `get_text`).
 Every page inherits from `BasePage` — helpers are written once, used everywhere.
 
 ### Single Responsibility
+
 Each class does exactly one thing:
+
 - `LoginPage` — handles login page only
 - `AdminPage` — handles admin page only
 - `CandidatesAPI` — handles HTTP calls only
 - `DataGenerator` — generates test data only
 
 ### Cookie Bridge Authentication
+
 OrangeHRM is a Vue.js SPA — the login form requires a server-generated
-token that only exists after JavaScript runs. The `requests` library
-has no JavaScript engine.
+`_token` that only exists after JavaScript runs. The `requests` library
+has no JavaScript engine and cannot get this token.
 
 **Solution:** Selenium logs in via a real headless browser → we extract
 the authenticated session cookie → inject it into `requests.Session()` →
-close the browser. The `requests` session makes all API calls authenticated.
-No browser visible during API tests.
+close the browser. The `requests` session makes all subsequent API calls
+as the authenticated user. No browser window is visible during API tests.
+
+### Test Execution Order
+
+The demo site allows only one active Admin session at a time. If the UI
+test logs in while the API session is active, the API session is invalidated.
+
+**Solution:** API tests always run before UI tests. This is enforced in
+`tests/conftest.py` via `pytest_collection_modifyitems` which reorders
+collected tests at runtime — no manual intervention needed.
 
 ---
 
 ## CI/CD — GitHub Actions
 
-The workflow at `.github/workflows/ci.yml` runs automatically on every push to `main`.
+The workflow at `.github/workflows/ci.yml` runs automatically on every
+push to `main` and on every pull request.
 
-**What it does:**
-1. Spins up a clean Ubuntu VM
-2. Installs Python and Chrome
-3. Installs all dependencies
-4. Runs the API tests
-5. Uploads the HTML report as a downloadable artifact
-6. Shows pass/fail badge on the repo page
+### What it does
 
-**Why API tests only in CI:**
-UI tests require a visible browser window. Headless Chrome on Linux
-for UI tests requires additional display server setup (Xvfb).
-API tests use headless Chrome natively — they run perfectly in CI
-without any extra configuration.
+| Step | Action |
+|------|--------|
+| 1 | Checks out the repository code onto a clean Ubuntu VM |
+| 2 | Installs Python 3.11 with pip caching for faster reruns |
+| 3 | Installs all project dependencies from `requirements.txt` |
+| 4 | Installs the latest stable Google Chrome |
+| 5 | Downloads and installs the matching ChromeDriver onto PATH |
+| 6 | Runs the API tests in headless mode |
+| 7 | Uploads the HTML report as a downloadable artifact |
+| 8 | Shows a pass/fail badge on the repository README |
 
-**View results:**
-Go to your repo → Actions tab → latest workflow run → download artifact `test-report-N`
+### Why API tests only in CI
+
+UI tests open a visible browser window. Running headed Chrome on a
+Linux VM requires a display server (Xvfb) which adds significant
+complexity to the CI setup. API tests use headless Chrome — they run
+perfectly on a Linux VM with no display server needed.
+
+### ChromeDriver in CI vs locally
+
+| Environment | ChromeDriver source | Why |
+|-------------|--------------------|----|
+| Local (Windows/Mac) | WebDriver Manager downloads automatically | No Chrome on PATH locally |
+| CI (GitHub Actions) | Installed by workflow step, available on PATH | WebDriver Manager has a known Linux bug — points to a text file instead of the binary |
+
+The framework detects the environment automatically using the `CI`
+environment variable that GitHub Actions sets on every run. No manual
+changes are needed when switching between local and CI.
+
+### View CI results
+
+```
+GitHub repo → Actions tab → latest run → download artifact "test-report-N"
+```
 
 ---
 
@@ -240,8 +287,10 @@ Go to your repo → Actions tab → latest workflow run → download artifact `t
 
 | Challenge | Problem | Solution |
 |-----------|---------|----------|
-| Vue SPA login | `requests` cannot execute JavaScript to get the login token | Cookie bridge — Selenium logs in, we extract the session cookie |
-| Session expiry | New login invalidates the previous session | `scope="class"` fixture — one login shared across all API tests |
-| ChromeDriver version | Driver version must match installed Chrome | WebDriver Manager auto-downloads the correct version |
-| Custom dropdowns | OrangeHRM uses Vue.js custom dropdowns, not native `<select>` | Click wrapper div → wait for `role='option'` → click by text |
-| Autocomplete field | Employee Name field requires API call after typing | `send_keys()` to type → wait for `role='option'` → keyboard select |
+| Vue SPA login | `requests` has no JavaScript engine — cannot get the login `_token` from the HTML shell | Cookie bridge — Selenium logs in via real browser, we extract the session cookie and inject into `requests.Session()` |
+| Single session per user | Demo site invalidates the existing session when a new login happens | `scope="class"` fixture — one browser login per test class, session reused across all tests |
+| Session race condition | UI test login runs and invalidates the API session mid-suite | `pytest_collection_modifyitems` — API tests always run before UI tests |
+| ChromeDriver Linux bug | WebDriver Manager on Linux CI points to `THIRD_PARTY_NOTICES.chromedriver` (a text file) instead of the binary | Detect `CI` environment variable — use chromedriver from PATH in CI, WebDriver Manager locally |
+| Custom Vue dropdowns | OrangeHRM uses Vue.js custom dropdowns, not native `<select>` elements | Click the wrapper div to open, wait for `role='option'`, click option by exact text |
+| Employee Name autocomplete | Field requires an API call after typing before suggestions appear | `send_keys()` to type search text → wait for `role='option'` → keyboard ARROW_DOWN + ENTER |
+| Slow demo server | Post-save redirect occasionally takes longer than default timeout | Three-step explicit wait: URL leaves save page → URL reaches list page → records label visible |
